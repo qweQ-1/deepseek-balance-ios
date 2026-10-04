@@ -229,6 +229,11 @@ final class BalanceViewModel {
         if !enabled { keeper.setKeepAlive(false) }
     }
 
+    /// 设置页「诊断」：画中画状态摘要（排障用）。
+    var pipDiagnostics: String {
+        pip.diagnostics
+    }
+
     /// 设置页「试弹一下」：立即用当前余额弹出画中画小窗。
     func pipPreviewStart() {
         pip.start(text: currentBalanceText ?? "DeepSeek 余额")

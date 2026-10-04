@@ -13,6 +13,7 @@ protocol PiPDisplaying: AnyObject {
     func start(text: String)
     func update(text: String)
     func stop()
+    var diagnostics: String { get }
 }
 
 /// 把余额文本渲染成 PiP 用的视频帧（可单测）。
@@ -34,6 +35,8 @@ enum PiPFrameRenderer {
         let attributes: [String: Any] = [
             kCVPixelBufferCGImageCompatibilityKey as String: true,
             kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+            // IOSurface 背衬：AVSampleBufferDisplayLayer 的视频管线需要它，否则可能黑屏。
+            kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any](),
         ]
         var buffer: CVPixelBuffer?
         let status = CVPixelBufferCreate(
@@ -68,7 +71,7 @@ enum PiPFrameRenderer {
 
         var timing = CMSampleTimingInfo(
             duration: CMTime(value: 1, timescale: 30),
-            presentationTimeStamp: .zero,
+            presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
             decodeTimeStamp: .invalid
         )
         var sampleBuffer: CMSampleBuffer?
@@ -112,6 +115,31 @@ final class BalancePiPController: NSObject, PiPDisplaying {
     private var wantsToBeActive = false
     private var startRetryBudget = 0
     private var latestText = ""
+    private var framesEnqueued = 0
+
+    var diagnostics: String {
+        var parts: [String] = []
+        parts.append("支持\(AVPictureInPictureController.isPictureInPictureSupported() ? "1" : "0")")
+        if let pipController {
+            parts.append("可用\(pipController.isPictureInPicturePossible ? "1" : "0")")
+            parts.append("活动\(pipController.isPictureInPictureActive ? "1" : "0")")
+        } else {
+            parts.append("未建窗")
+        }
+        parts.append("帧\(framesEnqueued)")
+        switch displayLayer.status {
+        case .rendering:
+            parts.append("图层=渲染中")
+        case .failed:
+            parts.append("图层=失败")
+        default:
+            parts.append("图层=未知")
+        }
+        if let error = displayLayer.error {
+            parts.append("错误:\(error.localizedDescription)")
+        }
+        return parts.joined(separator: " · ")
+    }
 
     func start(text: String) {
         guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
@@ -206,6 +234,7 @@ final class BalancePiPController: NSObject, PiPDisplaying {
             displayLayer.flush()
         }
         displayLayer.enqueue(sampleBuffer)
+        framesEnqueued += 1
     }
 
     // MARK: - 内部
@@ -246,8 +275,19 @@ extension BalancePiPController: AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isActive = true
         startRetryBudget = 0
-        enqueueFrame()
+        kickFrames()
         NSLog("[PiP] did start")
+    }
+
+    /// 弹窗成功后连投几帧，确保窗口马上有画面。
+    private func kickFrames() {
+        enqueueFrame()
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            self?.enqueueFrame()
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            self?.enqueueFrame()
+        }
     }
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {

@@ -88,6 +88,8 @@ final class SpyPiP: PiPDisplaying {
     private(set) var updates: [String] = []
     private(set) var stopCount = 0
 
+    var diagnostics: String { "spy" }
+
     func start(text: String) {
         isActive = true
         lastStartedText = text

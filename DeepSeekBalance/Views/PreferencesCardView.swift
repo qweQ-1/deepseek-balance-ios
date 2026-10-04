@@ -4,6 +4,7 @@ import SwiftUI
 struct PreferencesCardView: View {
     var model: BalanceViewModel
     @Bindable var settings: SettingsStore
+    @State private var pipDiagnosticsText: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -107,11 +108,18 @@ struct PreferencesCardView: View {
                 HStack(spacing: 10) {
                     Button("试弹一下") { model.pipPreviewStart() }
                     Button("关闭小窗") { model.pipPreviewStop() }
+                    Button("诊断") { pipDiagnosticsText = model.pipDiagnostics }
                 }
                 .font(.system(size: 12))
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .padding(.top, 2)
+
+                if let pipDiagnosticsText {
+                    Text(pipDiagnosticsText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Divider()

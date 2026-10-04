@@ -24,15 +24,25 @@ import Testing
 
         var opaqueCount = 0
         var sampled = 0
-        for y in stride(from: 4, to: height, by: 60) {
-            for x in stride(from: 4, to: width, by: 60) {
+        var sawBright = false
+        var sawBluish = false
+        for y in stride(from: 4, to: height, by: 30) {
+            for x in stride(from: 4, to: width, by: 30) {
                 let offset = y * bytesPerRow + x * 4
                 sampled += 1
-                if bytes[offset + 3] > 200 { opaqueCount += 1 }
+                let b = Int(bytes[offset])
+                let g = Int(bytes[offset + 1])
+                let r = Int(bytes[offset + 2])
+                let a = Int(bytes[offset + 3])
+                if a > 200 { opaqueCount += 1 }
+                if a > 200 && r + g + b > 300 { sawBright = true }
+                if a > 200 && b > 120 && b > r + 30 { sawBluish = true }
             }
         }
-        #expect(sampled > 50)
+        #expect(sampled > 200)
         #expect(opaqueCount >= sampled - 2, "帧内容应基本不透明（实际 \(opaqueCount)/\(sampled)）")
+        #expect(sawBright, "帧里应有亮色内容（文字）")
+        #expect(sawBluish, "帧里应有品牌蓝背景")
     }
 
     @Test func rendersDifferentTexts() throws {
