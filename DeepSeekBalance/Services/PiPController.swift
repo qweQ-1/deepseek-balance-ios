@@ -15,145 +15,20 @@ protocol PiPDisplaying: AnyObject {
     func stop()
 }
 
-/// 用 AVSampleBufferDisplayLayer + AVPictureInPictureController 把余额渲染进 PiP 小窗；
-/// 静音音频保活，使 PiP 激活期间 App 能继续在后台定时刷新余额。
+/// 把余额文本渲染成 PiP 用的视频帧（可单测）。
 @MainActor
-final class BalancePiPController: NSObject, PiPDisplaying {
-    private let displayLayer = AVSampleBufferDisplayLayer()
-    private var pipController: AVPictureInPictureController?
-    private var layerHostView: UIView?
-    private var silentPlayer: AVAudioPlayer?
-
-    private(set) var isActive = false
-    /// 期望处于激活状态；启动失败时据此决定是否重试。
-    private var wantsToBeActive = false
-    private var startRetryBudget = 0
-
-    func start(text: String) {
-        guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
-        wantsToBeActive = true
-        startRetryBudget = 0
-        attachLayerToWindowIfNeeded()
-        activateBackgroundAudio()
-        ensureController()
-        render(text: text)
-        attemptStart(retries: 4)
-    }
-
-    func update(text: String) {
-        guard isActive else { return }
-        render(text: text)
-    }
-
-    func stop() {
-        wantsToBeActive = false
-        pipController?.stopPictureInPicture()
-        if !isActive {
-            deactivateBackgroundAudio()
-        }
-    }
-
-    // MARK: - 启动与重试
-
-    /// 尝试启动 PiP；系统还没就绪时短暂重试（切后台的瞬间通常要等一个节拍）。
-    private func attemptStart(retries: Int) {
-        guard wantsToBeActive, let pipController else { return }
-        if pipController.isPictureInPictureActive || isActive { return }
-
-        if pipController.isPictureInPicturePossible {
-            NSLog("[PiP] startPictureInPicture()")
-            pipController.startPictureInPicture()
-            return
-        }
-
-        guard retries > 0, startRetryBudget < 12 else {
-            NSLog("[PiP] give up: isPictureInPicturePossible == false")
-            return
-        }
-        startRetryBudget += 1
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            self?.attemptStart(retries: retries - 1)
-        }
-    }
-
-    private func retryAfterFailure() {
-        guard wantsToBeActive, startRetryBudget < 12 else {
-            deactivateBackgroundAudio()
-            return
-        }
-        startRetryBudget += 1
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            self?.attemptStart(retries: 1)
-        }
-    }
-
-    // MARK: - 内部
-
-    private func ensureController() {
-        guard pipController == nil else { return }
-        displayLayer.videoGravity = .resizeAspect
-        let source = AVPictureInPictureController.ContentSource(
-            sampleBufferDisplayLayer: displayLayer,
-            playbackDelegate: self
-        )
-        let controller = AVPictureInPictureController(contentSource: source)
-        controller.delegate = self
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
-        pipController = controller
-    }
-
-    /// 把显示层挂进当前窗口（2×2 不可见；样本缓冲 PiP 要求层在视图层级里渲染）。
-    private func attachLayerToWindowIfNeeded() {
-        guard layerHostView == nil else { return }
-        let window = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow }
-        guard let window else { return }
-        let host = UIView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
-        host.isUserInteractionEnabled = false
-        displayLayer.frame = host.bounds
-        host.layer.addSublayer(displayLayer)
-        window.addSubview(host)
-        layerHostView = host
-    }
-
-    private func activateBackgroundAudio() {
-        guard silentPlayer == nil else { return }
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
-        try? session.setActive(true)
-        guard let url = Bundle.main.url(forResource: "silent", withExtension: "wav"),
-              let player = try? AVAudioPlayer(contentsOf: url) else { return }
-        player.numberOfLoops = -1
-        player.volume = 0.01
-        player.prepareToPlay()
-        player.play()
-        silentPlayer = player
-    }
-
-    private func deactivateBackgroundAudio() {
-        silentPlayer?.stop()
-        silentPlayer = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    }
-
-    private func render(text: String) {
+enum PiPFrameRenderer {
+    static func renderSampleBuffer(text: String, scale: CGFloat = 2) -> CMSampleBuffer? {
         let renderer = ImageRenderer(content: PiPBalanceView(text: text))
-        renderer.scale = 2
+        renderer.scale = scale
         renderer.isOpaque = true
         guard let cgImage = renderer.cgImage,
-              let pixelBuffer = Self.makePixelBuffer(from: cgImage),
-              let sampleBuffer = Self.makeSampleBuffer(from: pixelBuffer) else { return }
-        if displayLayer.requiresFlushToResumeDecoding {
-            displayLayer.flush()
-        }
-        displayLayer.enqueue(sampleBuffer)
+              let pixelBuffer = makePixelBuffer(from: cgImage),
+              let sampleBuffer = makeSampleBuffer(from: pixelBuffer) else { return nil }
+        return sampleBuffer
     }
 
-    private static func makePixelBuffer(from image: CGImage) -> CVPixelBuffer? {
+    static func makePixelBuffer(from image: CGImage) -> CVPixelBuffer? {
         let width = image.width
         let height = image.height
         let attributes: [String: Any] = [
@@ -182,7 +57,7 @@ final class BalancePiPController: NSObject, PiPDisplaying {
         return pixelBuffer
     }
 
-    private static func makeSampleBuffer(from pixelBuffer: CVPixelBuffer) -> CMSampleBuffer? {
+    static func makeSampleBuffer(from pixelBuffer: CVPixelBuffer) -> CMSampleBuffer? {
         var formatDescription: CMVideoFormatDescription?
         let formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
             allocator: kCFAllocatorDefault,
@@ -205,7 +80,163 @@ final class BalancePiPController: NSObject, PiPDisplaying {
             sampleBufferOut: &sampleBuffer
         )
         guard bufferStatus == noErr, let sampleBuffer else { return nil }
+
+        // 标记“立即显示”（实时内容），让 PiP 窗口马上能看到画面。
+        if let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: true),
+           CFArrayGetCount(attachments) > 0,
+           let raw = CFArrayGetValueAtIndex(attachments, 0) {
+            let dict = Unmanaged<CFMutableDictionary>.fromOpaque(raw).takeUnretainedValue()
+            if let value = kCFBooleanTrue {
+                CFDictionarySetValue(
+                    dict,
+                    Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
+                    Unmanaged.passUnretained(value).toOpaque()
+                )
+            }
+        }
         return sampleBuffer
+    }
+}
+
+/// 用 AVSampleBufferDisplayLayer + AVPictureInPictureController 把余额渲染进 PiP 小窗；
+/// 静音音频保活 + 每秒续投帧，使小窗在后台持续显示。
+@MainActor
+final class BalancePiPController: NSObject, PiPDisplaying {
+    private let displayLayer = AVSampleBufferDisplayLayer()
+    private var pipController: AVPictureInPictureController?
+    private var layerHostView: UIView?
+    private var pumpTask: Task<Void, Never>?
+
+    private(set) var isActive = false
+    /// 期望处于激活状态；启动失败时据此决定是否重试。
+    private var wantsToBeActive = false
+    private var startRetryBudget = 0
+    private var latestText = ""
+
+    func start(text: String) {
+        guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        wantsToBeActive = true
+        startRetryBudget = 0
+        latestText = text
+        BackgroundAudioSession.shared.hold("pip")
+        attachLayerToWindowIfNeeded()
+        ensureController()
+        enqueueFrame()
+        startPump()
+        attemptStart(retries: 4)
+    }
+
+    func update(text: String) {
+        latestText = text
+        guard isActive else { return }
+        enqueueFrame()
+    }
+
+    func stop() {
+        wantsToBeActive = false
+        pipController?.stopPictureInPicture()
+        stopPump()
+        BackgroundAudioSession.shared.release("pip")
+    }
+
+    // MARK: - 启动与重试
+
+    /// 尝试启动 PiP；系统还没就绪时短暂重试（切后台的瞬间通常要等一个节拍）。
+    private func attemptStart(retries: Int) {
+        guard wantsToBeActive, let pipController else { return }
+        if pipController.isPictureInPictureActive || isActive { return }
+
+        if pipController.isPictureInPicturePossible {
+            NSLog("[PiP] startPictureInPicture()")
+            pipController.startPictureInPicture()
+            return
+        }
+
+        guard retries > 0, startRetryBudget < 12 else {
+            NSLog("[PiP] give up: isPictureInPicturePossible == false")
+            stopPump()
+            BackgroundAudioSession.shared.release("pip")
+            return
+        }
+        startRetryBudget += 1
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            self?.attemptStart(retries: retries - 1)
+        }
+    }
+
+    private func retryAfterFailure() {
+        guard wantsToBeActive, startRetryBudget < 12 else {
+            stopPump()
+            BackgroundAudioSession.shared.release("pip")
+            return
+        }
+        startRetryBudget += 1
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            self?.attemptStart(retries: 1)
+        }
+    }
+
+    // MARK: - 投帧
+
+    /// 每秒续投一帧（即使画面没变），让 PiP 认为视频仍在播放、持续显示画面。
+    private func startPump() {
+        pumpTask?.cancel()
+        pumpTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard let self, self.wantsToBeActive || self.isActive else { return }
+                self.enqueueFrame()
+            }
+        }
+    }
+
+    private func stopPump() {
+        pumpTask?.cancel()
+        pumpTask = nil
+    }
+
+    private func enqueueFrame() {
+        guard let sampleBuffer = PiPFrameRenderer.renderSampleBuffer(text: latestText) else {
+            NSLog("[PiP] render failed")
+            return
+        }
+        if displayLayer.status == .failed || displayLayer.requiresFlushToResumeDecoding {
+            displayLayer.flush()
+        }
+        displayLayer.enqueue(sampleBuffer)
+    }
+
+    // MARK: - 内部
+
+    private func ensureController() {
+        guard pipController == nil else { return }
+        displayLayer.videoGravity = .resizeAspect
+        let source = AVPictureInPictureController.ContentSource(
+            sampleBufferDisplayLayer: displayLayer,
+            playbackDelegate: self
+        )
+        let controller = AVPictureInPictureController(contentSource: source)
+        controller.delegate = self
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        pipController = controller
+    }
+
+    /// 把显示层挂进窗口最底层（被页面内容盖住、用户不可见，但仍在渲染）。
+    private func attachLayerToWindowIfNeeded() {
+        guard layerHostView == nil else { return }
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }
+        guard let window else { return }
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 200))
+        host.isUserInteractionEnabled = false
+        displayLayer.frame = host.bounds
+        host.layer.addSublayer(displayLayer)
+        window.insertSubview(host, at: 0)
+        layerHostView = host
     }
 }
 
@@ -215,13 +246,15 @@ extension BalancePiPController: AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isActive = true
         startRetryBudget = 0
+        enqueueFrame()
         NSLog("[PiP] did start")
     }
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isActive = false
         wantsToBeActive = false
-        deactivateBackgroundAudio()
+        stopPump()
+        BackgroundAudioSession.shared.release("pip")
         NSLog("[PiP] did stop")
     }
 

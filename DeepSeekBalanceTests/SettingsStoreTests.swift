@@ -15,6 +15,7 @@ import Testing
         #expect(store.autoRefreshSeconds == 300)
         #expect(store.pipEnabled == false)
         #expect(store.activeDollID == "")
+        #expect(store.backgroundKeepAliveEnabled == false)
         #expect(store.speechLines == SettingsStore.defaultSpeechLines)
     }
 
@@ -30,6 +31,7 @@ import Testing
         first.autoRefreshSeconds = 60
         first.pipEnabled = true
         first.activeDollID = "doll-abc12345.jpg"
+        first.backgroundKeepAliveEnabled = true
 
         let second = SettingsStore(backend: backend)
         #expect(second.soundEnabled == false)
@@ -40,6 +42,7 @@ import Testing
         #expect(second.autoRefreshSeconds == 60)
         #expect(second.pipEnabled)
         #expect(second.activeDollID == "doll-abc12345.jpg")
+        #expect(second.backgroundKeepAliveEnabled)
         #expect(second.speechLines == ["你好", "世界"])
     }
 

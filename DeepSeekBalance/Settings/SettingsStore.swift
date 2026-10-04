@@ -44,6 +44,7 @@ final class SettingsStore {
         static let refreshSeconds = "settings.autoRefreshSeconds"
         static let pip = "settings.pipEnabled"
         static let doll = "settings.activeDollID"
+        static let keepAlive = "settings.backgroundKeepAlive"
     }
 
     private let backend: SettingsBackend
@@ -57,6 +58,7 @@ final class SettingsStore {
     var autoRefreshSeconds: Int { didSet { backend.set(autoRefreshSeconds, forKey: Key.refreshSeconds) } }
     var pipEnabled: Bool { didSet { backend.set(pipEnabled, forKey: Key.pip) } }
     var activeDollID: String { didSet { backend.set(activeDollID, forKey: Key.doll) } }
+    var backgroundKeepAliveEnabled: Bool { didSet { backend.set(backgroundKeepAliveEnabled, forKey: Key.keepAlive) } }
 
     init(backend: SettingsBackend = UserDefaults.standard) {
         self.backend = backend
@@ -69,6 +71,7 @@ final class SettingsStore {
         self.autoRefreshSeconds = (backend.object(forKey: Key.refreshSeconds) as? Int) ?? 300
         self.pipEnabled = (backend.object(forKey: Key.pip) as? Bool) ?? false
         self.activeDollID = (backend.object(forKey: Key.doll) as? String) ?? ""
+        self.backgroundKeepAliveEnabled = (backend.object(forKey: Key.keepAlive) as? Bool) ?? false
     }
 
     /// 自定义台词（每行一句）；留空用默认台词。

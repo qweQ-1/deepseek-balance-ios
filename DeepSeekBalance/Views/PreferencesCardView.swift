@@ -100,7 +100,7 @@ struct PreferencesCardView: View {
                 ))
                 .font(.system(size: 14))
 
-                Text("开启后，划出后台时用画中画小窗显示当前余额；回到 App 自动关闭。")
+                Text("开启后，划出后台时用画中画小窗显示当前余额；回到 App 自动关闭。没反应时先点『试弹一下』验证，或检查 系统设置 → 通用 → 画中画。")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
 
@@ -112,6 +112,20 @@ struct PreferencesCardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .padding(.top, 2)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("保持后台运行", isOn: Binding(
+                    get: { settings.backgroundKeepAliveEnabled },
+                    set: { model.backgroundKeepAliveToggled($0) }
+                ))
+                .font(.system(size: 14))
+
+                Text("开启后 App 划到后台也不被系统挂起：余额定时刷新、余额不足提醒在后台继续工作（靠静音音频保活，会多耗一点电）。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(20)

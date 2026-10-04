@@ -248,6 +248,49 @@ import Testing
         #expect(pip.stopCount >= 1)
     }
 
+    // MARK: - 保持后台运行
+
+    @Test func keepAliveFollowsSceneWhenEnabled() async throws {
+        let settings = SettingsStore(backend: InMemorySettingsBackend())
+        settings.backgroundKeepAliveEnabled = true
+        let keeper = SpyKeeper()
+        let response = try TestJSON.sampleResponse()
+        let model = makeViewModel(client: MockBalanceClient(result: .success(response)),
+                                  store: InMemoryAPIKeyStore(key: "sk-test"),
+                                  settings: settings,
+                                  keeper: keeper)
+        model.handleScenePhase(active: false)
+        #expect(keeper.isOn)
+        model.handleScenePhase(active: true)
+        #expect(keeper.isOn == false)
+    }
+
+    @Test func keepAliveOffByDefault() async throws {
+        let keeper = SpyKeeper()
+        let response = try TestJSON.sampleResponse()
+        let model = makeViewModel(client: MockBalanceClient(result: .success(response)),
+                                  store: InMemoryAPIKeyStore(key: "sk-test"),
+                                  keeper: keeper)
+        model.handleScenePhase(active: false)
+        #expect(keeper.isOn == false)
+    }
+
+    @Test func keepAliveToggleOffReleases() async throws {
+        let settings = SettingsStore(backend: InMemorySettingsBackend())
+        settings.backgroundKeepAliveEnabled = true
+        let keeper = SpyKeeper()
+        let response = try TestJSON.sampleResponse()
+        let model = makeViewModel(client: MockBalanceClient(result: .success(response)),
+                                  store: InMemoryAPIKeyStore(key: "sk-test"),
+                                  settings: settings,
+                                  keeper: keeper)
+        model.handleScenePhase(active: false)
+        #expect(keeper.isOn)
+        model.backgroundKeepAliveToggled(false)
+        #expect(settings.backgroundKeepAliveEnabled == false)
+        #expect(keeper.isOn == false)
+    }
+
     // MARK: - Key 管理
 
     @Test func saveKeyStoresAndRefreshes() async throws {

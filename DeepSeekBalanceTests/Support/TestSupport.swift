@@ -73,6 +73,13 @@ final class SpyNotifications: NotificationSending {
     }
 }
 
+/// 记录调用的后台保活 spy。
+@MainActor
+final class SpyKeeper: BackgroundKeeping {
+    private(set) var isOn = false
+    func setKeepAlive(_ on: Bool) { isOn = on }
+}
+
 /// 记录调用的画中画 spy。
 @MainActor
 final class SpyPiP: PiPDisplaying {
@@ -135,7 +142,8 @@ func makeViewModel(client: BalanceFetching,
                    sounds: SoundPlaying = SpySounds(),
                    speech: SpeechSpeaking = SpySpeech(),
                    notifications: NotificationSending = SpyNotifications(),
-                   pip: PiPDisplaying? = nil) -> BalanceViewModel {
+                   pip: PiPDisplaying? = nil,
+                   keeper: BackgroundKeeping? = nil) -> BalanceViewModel {
     let resolvedSettings = settings ?? SettingsStore(backend: InMemorySettingsBackend())
     let resolvedMonitor = monitor ?? BalanceMonitor(backend: InMemorySettingsBackend())
     return BalanceViewModel(client: client,
@@ -145,5 +153,6 @@ func makeViewModel(client: BalanceFetching,
                             sounds: sounds,
                             speech: speech,
                             notifications: notifications,
-                            pip: pip ?? SpyPiP())
+                            pip: pip ?? SpyPiP(),
+                            keeper: keeper ?? SpyKeeper())
 }

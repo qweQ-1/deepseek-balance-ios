@@ -54,6 +54,7 @@ final class BalanceViewModel {
     private let speech: SpeechSpeaking
     private let notifications: NotificationSending
     private let pip: PiPDisplaying
+    private let keeper: BackgroundKeeping
 
     init(client: BalanceFetching = DeepSeekClient(),
          store: APIKeyStoring = KeychainAPIKeyStore(),
@@ -62,7 +63,8 @@ final class BalanceViewModel {
          sounds: SoundPlaying = SystemSoundPlayer(),
          speech: SpeechSpeaking = SystemSpeechSpeaker(),
          notifications: NotificationSending = SystemNotificationSender(),
-         pip: PiPDisplaying? = nil) {
+         pip: PiPDisplaying? = nil,
+         keeper: BackgroundKeeping? = nil) {
         self.client = client
         self.store = store
         self.settings = settings ?? SettingsStore()
@@ -71,6 +73,7 @@ final class BalanceViewModel {
         self.speech = speech
         self.notifications = notifications
         self.pip = pip ?? BalancePiPController()
+        self.keeper = keeper ?? SilentAudioKeeper()
         self.hasStoredKey = !(store.loadKey() ?? "").isEmpty
     }
 
@@ -201,11 +204,16 @@ final class BalanceViewModel {
         return nil
     }
 
-    /// 前后台切换：开启画中画时，划出后台显示余额小窗，回到前台关闭。
+    /// 前后台切换：开启画中画时，划出后台显示余额小窗，回到前台关闭；
+    /// 开启「保持后台运行」时，在后台保持进程存活（余额继续定时刷新）。
     func handleScenePhase(active: Bool) {
         if active {
             pip.stop()
+            keeper.setKeepAlive(false)
         } else {
+            if settings.backgroundKeepAliveEnabled, hasStoredKey {
+                keeper.setKeepAlive(true)
+            }
             guard settings.pipEnabled, hasStoredKey, let text = currentBalanceText else { return }
             pip.start(text: text)
         }
@@ -214,6 +222,11 @@ final class BalanceViewModel {
     func pipToggled(_ enabled: Bool) {
         settings.pipEnabled = enabled
         if !enabled { pip.stop() }
+    }
+
+    func backgroundKeepAliveToggled(_ enabled: Bool) {
+        settings.backgroundKeepAliveEnabled = enabled
+        if !enabled { keeper.setKeepAlive(false) }
     }
 
     /// 设置页「试弹一下」：立即用当前余额弹出画中画小窗。
@@ -259,6 +272,7 @@ final class BalanceViewModel {
         isLowBalance = false
         monitor.reset()
         pip.stop()
+        keeper.setKeepAlive(false)
     }
 
     /// 开关余额提醒；打开时请求通知权限。
