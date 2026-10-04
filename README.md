@@ -11,7 +11,7 @@
 工程文件由 XcodeGen 从 `project.yml` 生成（`xcodegen generate`）。
 
 - 配置：`.ios-ci.yml`
-- 工作流入口：`.github/workflows/`
+- 工作流入口：`.github/workflows/`（含自定义的 **Unsigned IPA**：手动运行可产出不签名 IPA，配合 AltStore / Sideloadly / 轻松签 等自签工具安装）
 - AI 协作规则：`AGENTS.md`
 
 ## 结构
