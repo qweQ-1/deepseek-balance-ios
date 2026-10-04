@@ -31,16 +31,15 @@ final class DollStore {
         if dollID == Self.defaultDollID {
             return Bundle.main.url(forResource: "default-doll", withExtension: "jpg")
         }
+        guard !dollID.isEmpty else { return nil }
         let url = directory.appendingPathComponent(dollID)
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     /// 把存储的 ID 解析成可用 ID：失效或为空时回退到默认娃娃。
     func resolvedID(stored: String) -> String {
-        if stored != Self.defaultDollID, url(for: stored) != nil {
-            return stored
-        }
-        return Self.defaultDollID
+        guard !stored.isEmpty, stored != Self.defaultDollID else { return Self.defaultDollID }
+        return url(for: stored) != nil ? stored : Self.defaultDollID
     }
 
     /// 把一张图片加进娃娃列表，返回文件名。
