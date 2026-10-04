@@ -53,6 +53,7 @@ final class BalanceViewModel {
     private let sounds: SoundPlaying
     private let speech: SpeechSpeaking
     private let notifications: NotificationSending
+    private let pip: PiPDisplaying
 
     init(client: BalanceFetching = DeepSeekClient(),
          store: APIKeyStoring = KeychainAPIKeyStore(),
@@ -60,7 +61,8 @@ final class BalanceViewModel {
          monitor: BalanceMonitor = BalanceMonitor(),
          sounds: SoundPlaying = SystemSoundPlayer(),
          speech: SpeechSpeaking = SystemSpeechSpeaker(),
-         notifications: NotificationSending = SystemNotificationSender()) {
+         notifications: NotificationSending = SystemNotificationSender(),
+         pip: PiPDisplaying? = nil) {
         self.client = client
         self.store = store
         self.settings = settings ?? SettingsStore()
@@ -68,6 +70,7 @@ final class BalanceViewModel {
         self.sounds = sounds
         self.speech = speech
         self.notifications = notifications
+        self.pip = pip ?? BalancePiPController()
         self.hasStoredKey = !(store.loadKey() ?? "").isEmpty
     }
 
@@ -98,6 +101,9 @@ final class BalanceViewModel {
             state = .loaded(response)
             lastUpdated = Date()
             await processMonitor(response)
+            if settings.pipEnabled, let text = balanceText(for: response) {
+                pip.update(text: text)
+            }
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             state = .failed(message)
@@ -185,6 +191,36 @@ final class BalanceViewModel {
         }
     }
 
+    // MARK: - 画中画余额窗
+
+    /// 当前余额的短文本（如 "¥46.29"），没有查询结果时为 nil。
+    var currentBalanceText: String? {
+        if case .loaded(let response) = state {
+            return balanceText(for: response)
+        }
+        return nil
+    }
+
+    /// 前后台切换：开启画中画时，划出后台显示余额小窗，回到前台关闭。
+    func handleScenePhase(active: Bool) {
+        if active {
+            pip.stop()
+        } else {
+            guard settings.pipEnabled, hasStoredKey, let text = currentBalanceText else { return }
+            pip.start(text: text)
+        }
+    }
+
+    func pipToggled(_ enabled: Bool) {
+        settings.pipEnabled = enabled
+        if !enabled { pip.stop() }
+    }
+
+    private func balanceText(for response: BalanceResponse) -> String? {
+        guard let info = response.balanceInfos.first else { return nil }
+        return CurrencyFormat.display(amount: info.totalBalance, currency: info.currency)
+    }
+
     // MARK: - Key 管理
 
     /// 保存输入框里的 Key（去掉首尾空白）并立即查询。
@@ -212,6 +248,7 @@ final class BalanceViewModel {
         speechBubble = nil
         isLowBalance = false
         monitor.reset()
+        pip.stop()
     }
 
     /// 开关余额提醒；打开时请求通知权限。

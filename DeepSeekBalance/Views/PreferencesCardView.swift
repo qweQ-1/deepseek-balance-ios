@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 偏好设置：音效 / 语音 / 台词 / 余额提醒 / 定时刷新。
+/// 偏好设置：娃娃 / 音效 / 台词 / 余额提醒 / 定时刷新 / 画中画。
 struct PreferencesCardView: View {
     var model: BalanceViewModel
     @Bindable var settings: SettingsStore
@@ -11,11 +11,17 @@ struct PreferencesCardView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
 
+            DollSectionView(settings: settings)
+
+            Divider()
+
             VStack(spacing: 10) {
                 Toggle("音效", isOn: $settings.soundEnabled)
                 Toggle("语音说话", isOn: $settings.speechEnabled)
             }
             .font(.system(size: 14))
+
+            SoundSectionView()
 
             Divider()
 
@@ -83,6 +89,20 @@ struct PreferencesCardView: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                 }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("后台余额悬浮窗（画中画）", isOn: Binding(
+                    get: { settings.pipEnabled },
+                    set: { model.pipToggled($0) }
+                ))
+                .font(.system(size: 14))
+
+                Text("开启后，划出后台时用画中画小窗显示当前余额；回到 App 自动关闭。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(20)

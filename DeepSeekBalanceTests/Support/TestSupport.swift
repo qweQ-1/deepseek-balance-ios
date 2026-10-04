@@ -73,6 +73,29 @@ final class SpyNotifications: NotificationSending {
     }
 }
 
+/// 记录调用的画中画 spy。
+@MainActor
+final class SpyPiP: PiPDisplaying {
+    private(set) var isActive = false
+    private(set) var lastStartedText: String?
+    private(set) var updates: [String] = []
+    private(set) var stopCount = 0
+
+    func start(text: String) {
+        isActive = true
+        lastStartedText = text
+    }
+
+    func update(text: String) {
+        updates.append(text)
+    }
+
+    func stop() {
+        isActive = false
+        stopCount += 1
+    }
+}
+
 /// 测试用 JSON 与解码助手。
 enum TestJSON {
     static let sampleBalance = #"""
@@ -111,7 +134,8 @@ func makeViewModel(client: BalanceFetching,
                    monitor: BalanceMonitor? = nil,
                    sounds: SoundPlaying = SpySounds(),
                    speech: SpeechSpeaking = SpySpeech(),
-                   notifications: NotificationSending = SpyNotifications()) -> BalanceViewModel {
+                   notifications: NotificationSending = SpyNotifications(),
+                   pip: PiPDisplaying? = nil) -> BalanceViewModel {
     let resolvedSettings = settings ?? SettingsStore(backend: InMemorySettingsBackend())
     let resolvedMonitor = monitor ?? BalanceMonitor(backend: InMemorySettingsBackend())
     return BalanceViewModel(client: client,
@@ -120,5 +144,6 @@ func makeViewModel(client: BalanceFetching,
                             monitor: resolvedMonitor,
                             sounds: sounds,
                             speech: speech,
-                            notifications: notifications)
+                            notifications: notifications,
+                            pip: pip ?? SpyPiP())
 }

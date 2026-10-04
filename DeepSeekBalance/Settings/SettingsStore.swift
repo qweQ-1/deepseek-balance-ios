@@ -42,6 +42,8 @@ final class SettingsStore {
         static let threshold = "settings.lowBalanceThreshold"
         static let autoRefresh = "settings.autoRefreshEnabled"
         static let refreshSeconds = "settings.autoRefreshSeconds"
+        static let pip = "settings.pipEnabled"
+        static let doll = "settings.activeDollID"
     }
 
     private let backend: SettingsBackend
@@ -53,6 +55,8 @@ final class SettingsStore {
     var lowBalanceThresholdText: String { didSet { backend.set(lowBalanceThresholdText, forKey: Key.threshold) } }
     var autoRefreshEnabled: Bool { didSet { backend.set(autoRefreshEnabled, forKey: Key.autoRefresh) } }
     var autoRefreshSeconds: Int { didSet { backend.set(autoRefreshSeconds, forKey: Key.refreshSeconds) } }
+    var pipEnabled: Bool { didSet { backend.set(pipEnabled, forKey: Key.pip) } }
+    var activeDollID: String { didSet { backend.set(activeDollID, forKey: Key.doll) } }
 
     init(backend: SettingsBackend = UserDefaults.standard) {
         self.backend = backend
@@ -63,6 +67,8 @@ final class SettingsStore {
         self.lowBalanceThresholdText = (backend.object(forKey: Key.threshold) as? String) ?? "10.00"
         self.autoRefreshEnabled = (backend.object(forKey: Key.autoRefresh) as? Bool) ?? true
         self.autoRefreshSeconds = (backend.object(forKey: Key.refreshSeconds) as? Int) ?? 300
+        self.pipEnabled = (backend.object(forKey: Key.pip) as? Bool) ?? false
+        self.activeDollID = (backend.object(forKey: Key.doll) as? String) ?? ""
     }
 
     /// 自定义台词（每行一句）；留空用默认台词。

@@ -9,6 +9,16 @@ enum TopUpDetector {
     }
 }
 
+/// 掉饭规则：每充值 1 元掉一碗饭，最多 60 碗。
+enum RiceRain {
+    static let bowlValue: Double = 1.0
+
+    static func bowls(for amount: Double, cap: Int = 60) -> Int {
+        guard amount >= 0.005 else { return 0 }
+        return max(1, min(cap, Int(amount.rounded(.down))))
+    }
+}
+
 /// 跨启动保存的余额监控状态（用于充值检测与提醒去重）。
 final class BalanceMonitor {
     private enum Key {

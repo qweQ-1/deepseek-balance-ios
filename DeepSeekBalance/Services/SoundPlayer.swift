@@ -12,22 +12,19 @@ protocol SoundPlaying {
     func play(_ sound: AppSound)
 }
 
-/// 播放内置音效；资源缺失时静默跳过（测试环境安全）。
+/// 播放音效：优先用户自定义音效（SoundStore），否则播放内置音效。
+/// 资源缺失时静默跳过（测试环境安全）。
 final class SystemSoundPlayer: SoundPlaying {
-    private var players: [AppSound: AVAudioPlayer] = [:]
+    private var activePlayers: [AVAudioPlayer] = []
 
     func play(_ sound: AppSound) {
-        if let player = players[sound] {
-            player.currentTime = 0
-            player.play()
-            return
-        }
-        guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "wav"),
-              let player = try? AVAudioPlayer(contentsOf: url) else {
-            return
-        }
+        let custom = SoundStore.shared.customURL(for: sound)
+        let bundled = Bundle.main.url(forResource: sound.rawValue, withExtension: "wav")
+        guard let url = custom ?? bundled,
+              let player = try? AVAudioPlayer(contentsOf: url) else { return }
         player.prepareToPlay()
-        players[sound] = player
         player.play()
+        activePlayers = activePlayers.filter { $0.isPlaying }
+        activePlayers.append(player)
     }
 }

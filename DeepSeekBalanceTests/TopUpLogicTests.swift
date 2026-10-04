@@ -21,6 +21,14 @@ import Testing
         #expect(TopUpDetector.topUpAmount(previous: 100, current: 100.001) == nil)
     }
 
+    @Test func riceBowlsPerYuan() {
+        #expect(RiceRain.bowls(for: 40.0) == 40)
+        #expect(RiceRain.bowls(for: 0.5) == 1)
+        #expect(RiceRain.bowls(for: 999) == 60)
+        #expect(RiceRain.bowls(for: 0) == 0)
+        #expect(RiceRain.bowls(for: 40.0, cap: 10) == 10)
+    }
+
     @Test func monitorRoundTrip() {
         let backend = InMemorySettingsBackend()
         let monitor = BalanceMonitor(backend: backend)

@@ -13,6 +13,8 @@ import Testing
         #expect(store.lowBalanceThresholdText == "10.00")
         #expect(store.autoRefreshEnabled)
         #expect(store.autoRefreshSeconds == 300)
+        #expect(store.pipEnabled == false)
+        #expect(store.activeDollID == "")
         #expect(store.speechLines == SettingsStore.defaultSpeechLines)
     }
 
@@ -26,6 +28,8 @@ import Testing
         first.lowBalanceThresholdText = "25.5"
         first.autoRefreshEnabled = false
         first.autoRefreshSeconds = 60
+        first.pipEnabled = true
+        first.activeDollID = "doll-abc12345.jpg"
 
         let second = SettingsStore(backend: backend)
         #expect(second.soundEnabled == false)
@@ -34,6 +38,8 @@ import Testing
         #expect(second.lowBalanceThresholdText == "25.5")
         #expect(second.autoRefreshEnabled == false)
         #expect(second.autoRefreshSeconds == 60)
+        #expect(second.pipEnabled)
+        #expect(second.activeDollID == "doll-abc12345.jpg")
         #expect(second.speechLines == ["你好", "世界"])
     }
 

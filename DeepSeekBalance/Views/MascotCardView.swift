@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 掉落的“白饭”。
 struct RiceItem: Identifiable, Equatable {
@@ -8,23 +9,20 @@ struct RiceItem: Identifiable, Equatable {
     let currency: String
 }
 
-/// 小饭团互动区：点按说话；检测到充值会掉落白饭，拖给小饭团吃。
+/// 小饭团互动区：点按说话；检测到充值会掉落白饭（每 ¥1 一碗），拖给娃娃吃。
 struct MascotCardView: View {
     var model: BalanceViewModel
     @State private var rices: [RiceItem] = []
     @State private var mascotFrame: CGRect = .zero
+    @State private var dollImage: UIImage?
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("小饭团")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                Text("小饭团").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
                 Spacer()
                 if model.lastTopUp != nil {
-                    Text("检测到充值，饭来啦 🍚")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.orange)
+                    Text("检测到充值，开饭啦 🍚").font(.system(size: 11)).foregroundStyle(.orange)
                 }
             }
 
@@ -40,7 +38,7 @@ struct MascotCardView: View {
                 }
                 .coordinateSpace(.named("mascotPlay"))
             }
-            .frame(height: 170)
+            .frame(height: 236)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -49,10 +47,12 @@ struct MascotCardView: View {
                 .fill(Color(.secondarySystemGroupedBackground))
         )
         .onChange(of: model.lastTopUp?.id) { _, newValue in
-            if newValue != nil { dropRice() }
+            if newValue != nil { dropRiceRain() }
         }
+        .onChange(of: model.settings.activeDollID) { _, _ in loadDoll() }
         .onAppear {
-            if model.lastTopUp != nil, rices.isEmpty { dropRice() }
+            loadDoll()
+            if model.lastTopUp != nil, rices.isEmpty { dropRiceRain() }
         }
     }
 
@@ -76,9 +76,7 @@ struct MascotCardView: View {
             Button {
                 model.mascotTapped()
             } label: {
-                Text("🍙")
-                    .font(.system(size: 72))
-                    .shadow(color: .black.opacity(0.15), radius: 10, y: 6)
+                mascotImage
             }
             .buttonStyle(BounceButtonStyle())
             .accessibilityIdentifier("mascot.button")
@@ -100,13 +98,45 @@ struct MascotCardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func dropRice() {
+    @ViewBuilder
+    private var mascotImage: some View {
+        if let dollImage {
+            Image(uiImage: dollImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 116, height: 164)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 6)
+        } else {
+            Text("🍙")
+                .font(.system(size: 64))
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 6)
+        }
+    }
+
+    private func loadDoll() {
+        let resolved = DollStore.shared.resolvedID(stored: model.settings.activeDollID)
+        if let url = DollStore.shared.url(for: resolved) {
+            dollImage = UIImage(contentsOfFile: url.path)
+        } else {
+            dollImage = nil
+        }
+    }
+
+    /// 每 ¥1 掉一碗饭，带节奏感地落下来。
+    private func dropRiceRain() {
         guard let topup = model.lastTopUp else { return }
-        let rice = RiceItem(dropX: CGFloat.random(in: 0.15...0.85),
-                            amount: topup.amount,
-                            currency: topup.currency)
-        withAnimation(.spring(duration: 0.5)) {
-            rices.append(rice)
+        let count = RiceRain.bowls(for: topup.amount)
+        Task {
+            for _ in 0..<count {
+                let rice = RiceItem(dropX: CGFloat.random(in: 0.12...0.88),
+                                    amount: RiceRain.bowlValue,
+                                    currency: topup.currency)
+                withAnimation(.spring(duration: 0.5)) {
+                    rices.append(rice)
+                }
+                try? await Task.sleep(nanoseconds: 70_000_000)
+            }
         }
     }
 
@@ -122,7 +152,7 @@ struct MascotCardView: View {
 struct BounceButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.82 : 1)
+            .scaleEffect(configuration.isPressed ? 0.85 : 1)
             .animation(.spring(duration: 0.22, bounce: 0.5), value: configuration.isPressed)
     }
 }
@@ -139,7 +169,7 @@ private struct RiceView: View {
     @State private var eaten = false
 
     private var basePoint: CGPoint {
-        CGPoint(x: containerSize.width * item.dropX, y: containerSize.height * 0.66)
+        CGPoint(x: containerSize.width * item.dropX, y: containerSize.height * 0.72)
     }
 
     private var point: CGPoint {

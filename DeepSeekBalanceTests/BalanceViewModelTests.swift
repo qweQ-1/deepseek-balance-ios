@@ -177,6 +177,67 @@ import Testing
         #expect(settings.lowBalanceReminderEnabled == false)
     }
 
+    // MARK: - 画中画余额窗
+
+    @Test func pipStartsOnBackgroundWhenEnabled() async throws {
+        let settings = SettingsStore(backend: InMemorySettingsBackend())
+        settings.pipEnabled = true
+        let pip = SpyPiP()
+        let response = try TestJSON.sampleResponse()
+        let model = makeViewModel(client: MockBalanceClient(result: .success(response)),
+                                  store: InMemoryAPIKeyStore(key: "sk-test"),
+                                  settings: settings,
+                                  pip: pip)
+        await model.refresh()
+        model.handleScenePhase(active: false)
+        #expect(pip.lastStartedText == "¥46.29")
+
+        model.handleScenePhase(active: true)
+        #expect(pip.stopCount == 1)
+    }
+
+    @Test func pipStaysOffWhenDisabled() async throws {
+        let settings = SettingsStore(backend: InMemorySettingsBackend())
+        let pip = SpyPiP()
+        let response = try TestJSON.sampleResponse()
+        let model = makeViewModel(client: MockBalanceClient(result: .success(response)),
+                                  store: InMemoryAPIKeyStore(key: "sk-test"),
+                                  settings: settings,
+                                  pip: pip)
+        await model.refresh()
+        model.handleScenePhase(active: false)
+        #expect(pip.lastStartedText == nil)
+    }
+
+    @Test func pipUpdatesAfterRefresh() async throws {
+        let settings = SettingsStore(backend: InMemorySettingsBackend())
+        settings.pipEnabled = true
+        let pip = SpyPiP()
+        let first = try TestJSON.balance(from: TestJSON.balanceJSON(total: "46.29"))
+        let second = try TestJSON.balance(from: TestJSON.balanceJSON(total: "86.29"))
+        let model = makeViewModel(client: SequencedBalanceClient(responses: [first, second]),
+                                  store: InMemoryAPIKeyStore(key: "sk-test"),
+                                  settings: settings,
+                                  pip: pip)
+        await model.refresh()
+        model.handleScenePhase(active: false)
+        await model.refresh()
+        #expect(pip.updates.contains("¥86.29"))
+    }
+
+    @Test func pipToggledOffStops() {
+        let settings = SettingsStore(backend: InMemorySettingsBackend())
+        let pip = SpyPiP()
+        let model = makeViewModel(client: MockBalanceClient(result: .failure(DeepSeekClientError.missingKey)),
+                                  settings: settings,
+                                  pip: pip)
+        model.pipToggled(true)
+        #expect(settings.pipEnabled)
+        model.pipToggled(false)
+        #expect(settings.pipEnabled == false)
+        #expect(pip.stopCount >= 1)
+    }
+
     // MARK: - Key 管理
 
     @Test func saveKeyStoresAndRefreshes() async throws {

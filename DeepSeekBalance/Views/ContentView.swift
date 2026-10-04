@@ -30,8 +30,14 @@ struct ContentView: View {
         .task { await model.refreshIfNeeded() }
         .task { await model.autoRefreshLoop() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
+            switch phase {
+            case .active:
                 Task { await model.refreshOnForeground() }
+                model.handleScenePhase(active: true)
+            case .background:
+                model.handleScenePhase(active: false)
+            default:
+                break
             }
         }
     }
