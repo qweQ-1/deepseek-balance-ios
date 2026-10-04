@@ -8,6 +8,9 @@ struct BalanceCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             content
+            if model.isLowBalance {
+                lowBalanceBanner
+            }
             if case .loaded = model.state {
                 footer
             }
@@ -122,13 +125,25 @@ struct BalanceCardView: View {
                 Text(info.totalBalance)
                     .font(.system(size: 46, weight: .heavy))
                     .monospacedDigit()
+                    .accessibilityIdentifier("balance.total")
                 if !info.currency.isEmpty {
                     Text(info.currency)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 4)
                 }
+                if let flash = model.fedFlash, flash.currency == info.currency {
+                    Text("+" + CurrencyFormat.display(amount: String(format: "%.2f", flash.amount), currency: info.currency))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.green.opacity(0.15)))
+                        .padding(.leading, 6)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
+            .animation(.spring(duration: 0.3), value: model.fedFlash?.id)
             Text("总余额")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -152,6 +167,18 @@ struct BalanceCardView: View {
                 .monospacedDigit()
         }
         .padding(.vertical, 9)
+    }
+
+    // MARK: - 低余额横幅
+
+    private var lowBalanceBanner: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text("余额低于提醒阈值，记得充值哦")
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.orange)
+        .padding(.top, 12)
     }
 
     // MARK: - 更新时间
