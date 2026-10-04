@@ -17,19 +17,23 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: DeepSeekBalance
+    info:
+      path: DeepSeekBalance/Info.plist
+      properties:
+        CFBundleDisplayName: "DeepSeek 余额"
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+        UIBackgroundModes:
+          - audio
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.qweq-1.deepseekbalance
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1"
-        GENERATE_INFOPLIST_FILE: "YES"
-        INFOPLIST_KEY_CFBundleDisplayName: "DeepSeek 余额"
-        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: "YES"
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: "NO"
-        INFOPLIST_KEY_UIBackgroundModes: audio
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: "YES"
