@@ -56,14 +56,14 @@ final class BalanceViewModel {
 
     init(client: BalanceFetching = DeepSeekClient(),
          store: APIKeyStoring = KeychainAPIKeyStore(),
-         settings: SettingsStore = SettingsStore(),
+         settings: SettingsStore? = nil,
          monitor: BalanceMonitor = BalanceMonitor(),
          sounds: SoundPlaying = SystemSoundPlayer(),
          speech: SpeechSpeaking = SystemSpeechSpeaker(),
          notifications: NotificationSending = SystemNotificationSender()) {
         self.client = client
         self.store = store
-        self.settings = settings
+        self.settings = settings ?? SettingsStore()
         self.monitor = monitor
         self.sounds = sounds
         self.speech = speech
