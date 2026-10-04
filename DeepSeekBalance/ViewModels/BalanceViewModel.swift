@@ -216,6 +216,16 @@ final class BalanceViewModel {
         if !enabled { pip.stop() }
     }
 
+    /// 设置页「试弹一下」：立即用当前余额弹出画中画小窗。
+    func pipPreviewStart() {
+        pip.start(text: currentBalanceText ?? "DeepSeek 余额")
+    }
+
+    /// 设置页「关闭小窗」。
+    func pipPreviewStop() {
+        pip.stop()
+    }
+
     private func balanceText(for response: BalanceResponse) -> String? {
         guard let info = response.balanceInfos.first else { return nil }
         return CurrencyFormat.display(amount: info.totalBalance, currency: info.currency)

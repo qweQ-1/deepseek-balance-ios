@@ -81,7 +81,7 @@ struct BalanceCardView: View {
     private var content: some View {
         switch model.state {
         case .idle:
-            Text("输入 API Key 后即可查询余额")
+            Text("还没有设置 API Key · 点右上角设置")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .padding(.top, 18)

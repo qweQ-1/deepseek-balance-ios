@@ -103,6 +103,15 @@ struct PreferencesCardView: View {
                 Text("开启后，划出后台时用画中画小窗显示当前余额；回到 App 自动关闭。")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+
+                HStack(spacing: 10) {
+                    Button("试弹一下") { model.pipPreviewStart() }
+                    Button("关闭小窗") { model.pipPreviewStop() }
+                }
+                .font(.system(size: 12))
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.top, 2)
             }
         }
         .padding(20)

@@ -238,6 +238,16 @@ import Testing
         #expect(pip.stopCount >= 1)
     }
 
+    @Test func pipPreviewStartsEvenWithoutBalance() {
+        let pip = SpyPiP()
+        let model = makeViewModel(client: MockBalanceClient(result: .failure(DeepSeekClientError.missingKey)),
+                                  pip: pip)
+        model.pipPreviewStart()
+        #expect(pip.lastStartedText == "DeepSeek 余额")
+        model.pipPreviewStop()
+        #expect(pip.stopCount >= 1)
+    }
+
     // MARK: - Key 管理
 
     @Test func saveKeyStoresAndRefreshes() async throws {

@@ -25,16 +25,19 @@ final class BalancePiPController: NSObject, PiPDisplaying {
     private var silentPlayer: AVAudioPlayer?
 
     private(set) var isActive = false
+    /// 期望处于激活状态；启动失败时据此决定是否重试。
+    private var wantsToBeActive = false
+    private var startRetryBudget = 0
 
     func start(text: String) {
         guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        wantsToBeActive = true
+        startRetryBudget = 0
         attachLayerToWindowIfNeeded()
         activateBackgroundAudio()
         ensureController()
         render(text: text)
-        if let pipController, !pipController.isPictureInPictureActive {
-            pipController.startPictureInPicture()
-        }
+        attemptStart(retries: 4)
     }
 
     func update(text: String) {
@@ -43,9 +46,46 @@ final class BalancePiPController: NSObject, PiPDisplaying {
     }
 
     func stop() {
+        wantsToBeActive = false
         pipController?.stopPictureInPicture()
         if !isActive {
             deactivateBackgroundAudio()
+        }
+    }
+
+    // MARK: - 启动与重试
+
+    /// 尝试启动 PiP；系统还没就绪时短暂重试（切后台的瞬间通常要等一个节拍）。
+    private func attemptStart(retries: Int) {
+        guard wantsToBeActive, let pipController else { return }
+        if pipController.isPictureInPictureActive || isActive { return }
+
+        if pipController.isPictureInPicturePossible {
+            NSLog("[PiP] startPictureInPicture()")
+            pipController.startPictureInPicture()
+            return
+        }
+
+        guard retries > 0, startRetryBudget < 12 else {
+            NSLog("[PiP] give up: isPictureInPicturePossible == false")
+            return
+        }
+        startRetryBudget += 1
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            self?.attemptStart(retries: retries - 1)
+        }
+    }
+
+    private func retryAfterFailure() {
+        guard wantsToBeActive, startRetryBudget < 12 else {
+            deactivateBackgroundAudio()
+            return
+        }
+        startRetryBudget += 1
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            self?.attemptStart(retries: 1)
         }
     }
 
@@ -60,10 +100,11 @@ final class BalancePiPController: NSObject, PiPDisplaying {
         )
         let controller = AVPictureInPictureController(contentSource: source)
         controller.delegate = self
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
         pipController = controller
     }
 
-    /// 把显示层挂进当前窗口（很小、几乎透明；样本缓冲 PiP 要求层在视图层级里）。
+    /// 把显示层挂进当前窗口（2×2 不可见；样本缓冲 PiP 要求层在视图层级里渲染）。
     private func attachLayerToWindowIfNeeded() {
         guard layerHostView == nil else { return }
         let window = UIApplication.shared.connectedScenes
@@ -71,8 +112,7 @@ final class BalancePiPController: NSObject, PiPDisplaying {
             .flatMap { $0.windows }
             .first { $0.isKeyWindow }
         guard let window else { return }
-        let host = UIView(frame: CGRect(x: 0, y: 0, width: 4, height: 4))
-        host.alpha = 0.02
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
         host.isUserInteractionEnabled = false
         displayLayer.frame = host.bounds
         host.layer.addSublayer(displayLayer)
@@ -174,17 +214,22 @@ final class BalancePiPController: NSObject, PiPDisplaying {
 extension BalancePiPController: AVPictureInPictureControllerDelegate {
     func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isActive = true
+        startRetryBudget = 0
+        NSLog("[PiP] did start")
     }
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         isActive = false
+        wantsToBeActive = false
         deactivateBackgroundAudio()
+        NSLog("[PiP] did stop")
     }
 
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController,
                                     failedToStartPictureInPictureWithError error: Error) {
         isActive = false
-        deactivateBackgroundAudio()
+        NSLog("[PiP] failed to start: %@", String(describing: error))
+        retryAfterFailure()
     }
 }
 
