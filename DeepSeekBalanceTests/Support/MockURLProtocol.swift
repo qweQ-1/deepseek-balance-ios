@@ -1,4 +1,5 @@
 import Foundation
+@testable import DeepSeekBalance
 
 /// 拦截 URLSession 请求的 mock 协议，按 handler 返回预设响应。
 final class MockURLProtocol: URLProtocol {
